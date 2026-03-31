@@ -22,6 +22,6 @@
   "artifact_path": "D:/JarNox/stock-dashboard/data/models/maruti/v1.0.0/model.json",
   "data_as_of_date": "2026-03-31",
   "residual_std": 558.583414,
-  "cache_hit": false,
+  "cache_hit": true,
   "last_known_close": 16123.3
 }

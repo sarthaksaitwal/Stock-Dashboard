@@ -21,6 +21,10 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import logging
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -168,40 +172,42 @@ def fetch_and_clean_data(symbol: str, days: int = 365) -> pd.DataFrame:
         if alpha_data is not None and not alpha_data.empty:
             logger.info(f"    Retrieved {len(alpha_data)} records from Alpha Vantage for {symbol}")
             return alpha_data
-        logger.warning(f"    Alpha Vantage unavailable for {symbol}. Trying yfinance...")
-        
+
+        logger.warning(f"    Alpha Vantage unavailable for {symbol}. Trying yfinance fallback...")
+
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
-        
-        # Fetch from yfinance
+
         data = yf.download(
-            f"{symbol}.NS",  # .NS for NSE (India)
+            f"{symbol}.NS",
             start=start_date,
             end=end_date,
             progress=False
         )
-        
+
         if data.empty:
-            logger.warning(f"    No live data found for {symbol}. Using synthetic fallback data.")
+            logger.warning(
+                f"    No live provider data found for {symbol}. Using synthetic MOCK data for demonstration."
+            )
             return generate_synthetic_data(symbol, days)
-        
-        # Clean data
+
         data = data.dropna(subset=['Close', 'Open', 'High', 'Low', 'Volume'])
         data = data.ffill()
-        
-        # Calculate metrics
+
         data['Daily_Return'] = ((data['Close'] - data['Open']) / data['Open'] * 100).round(2)
         data['MA7'] = data['Close'].rolling(window=7).mean().round(2)
         data['MA30'] = data['Close'].rolling(window=30).mean().round(2)
-        
+
         data = data.reset_index()
-        
-        logger.info(f"    Retrieved {len(data)} records for {symbol}")
+
+        logger.info(f"    Retrieved {len(data)} records from yfinance fallback for {symbol}")
         return data
         
     except Exception as e:
         logger.error(f"    Error fetching {symbol}: {str(e)}")
-        logger.warning(f"    Falling back to synthetic data for {symbol}")
+        logger.warning(
+            f"    Falling back to synthetic MOCK data for {symbol} (demonstration mode)"
+        )
         return generate_synthetic_data(symbol, days)
 
 
@@ -217,7 +223,7 @@ def fetch_from_alpha_vantage(symbol: str, days: int) -> pd.DataFrame:
         response = requests.get(
             "https://www.alphavantage.co/query",
             params={
-                "function": "TIME_SERIES_DAILY_ADJUSTED",
+                "function": "TIME_SERIES_DAILY",
                 "symbol": provider_symbol,
                 "outputsize": "full",
                 "apikey": api_key,

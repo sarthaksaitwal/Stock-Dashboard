@@ -50,6 +50,52 @@ def _alpha_symbol(symbol: str) -> str:
     return ALPHA_VANTAGE_SYMBOLS.get(symbol.upper(), f"{symbol.upper()}.BSE")
 
 
+def _alpha_daily_available(symbol: str) -> tuple[bool, str]:
+    """Quick probe to determine whether Alpha Vantage daily data is available."""
+    api_key = os.getenv("ALPHA_VANTAGE_API_KEY", "").strip()
+    if not api_key:
+        return False, "ALPHA_VANTAGE_API_KEY is not configured"
+
+    try:
+        provider_response = requests.get(
+            "https://www.alphavantage.co/query",
+            params={
+                "function": "TIME_SERIES_DAILY",
+                "symbol": _alpha_symbol(symbol),
+                "outputsize": "compact",
+                "apikey": api_key,
+            },
+            timeout=15,
+        )
+        provider_response.raise_for_status()
+        payload = provider_response.json()
+
+        if "Error Message" in payload:
+            return False, "Alpha Vantage returned an error response"
+        if "Note" in payload:
+            return False, "Alpha Vantage rate limit reached"
+
+        ts_key = next((k for k in payload.keys() if "Time Series" in k), None)
+        if not ts_key or not payload.get(ts_key):
+            return False, "Alpha Vantage daily time series missing"
+
+        return True, "Live Alpha Vantage daily data is available"
+    except requests.RequestException:
+        return False, "Alpha Vantage request failed"
+
+
+@router.get("/provider-status/{symbol}", response_model=dict)
+async def get_provider_status(symbol: str):
+    """Return whether live provider data is currently available for a symbol."""
+    is_live, reason = _alpha_daily_available(symbol)
+    return {
+        "symbol": symbol.upper(),
+        "is_live": is_live,
+        "mode": "live" if is_live else "demo",
+        "message": reason,
+    }
+
+
 def _build_session_points_from_daily(
     db: Session,
     symbol: str,
@@ -208,7 +254,7 @@ async def get_market_session_data(
                 elif "Note" in payload:
                     fallback_reason = "Alpha Vantage rate limit reached"
                 elif not timeseries:
-                    fallback_reason = "intraday time series missing in provider response"
+                    fallback_reason = "Alpha Vantage intraday time series missing"
                 else:
                     for ts_str, point in timeseries.items():
                         try:
@@ -236,10 +282,10 @@ async def get_market_session_data(
                     else:
                         fallback_reason = f"no intraday points returned for selected date {trade_date}"
             except requests.RequestException as e:
-                fallback_reason = "provider request failed"
+                fallback_reason = "Alpha Vantage request failed"
                 logger.warning(f"Intraday provider request failed for {symbol}: {str(e)}")
         else:
-            fallback_reason = "ALPHA_VANTAGE_API_KEY not configured"
+            fallback_reason = "ALPHA_VANTAGE_API_KEY is not configured"
 
         if not rows:
             rows = _build_session_points_from_daily(db, symbol, selected_date, interval)
@@ -260,8 +306,8 @@ async def get_market_session_data(
             else:
                 api_response.headers["X-Session-Source"] = "fallback_daily"
                 api_response.headers["X-Session-Message"] = (
-                    "Fallback session data generated from stored daily candle because "
-                    f"{fallback_reason}."
+                    "Using fallback session data for demonstration because "
+                    f"{fallback_reason}. This may include MOCK/simulated data."
                 )
 
         logger.info(f"Retrieved {len(rows)} intraday points for {symbol.upper()} on {trade_date}")

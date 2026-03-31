@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     ]
     date_range_days: int = 365
     
+    # API Keys
+    alpha_vantage_api_key: str = ""
+    
     # Data Update Schedule
     data_update_interval: int = 24  # hours
 

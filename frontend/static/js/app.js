@@ -271,6 +271,8 @@ function App() {
   const [correlationError, setCorrelationError] = useState("");
 
   const [analytics, setAnalytics] = useState({ gainers: [], losers: [] });
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [demoMessage, setDemoMessage] = useState("");
 
   const filteredCompanies = useMemo(() => {
     const term = debouncedSearch.trim().toLowerCase();
@@ -347,7 +349,11 @@ function App() {
             ? `${API_BASE}/data/session/${symbol}?trade_date=${encodeURIComponent(sessionDate)}&interval=5min`
             : `${API_BASE}/data/${symbol}?days=${days}`;
 
-        const [seriesRes, summaryRes] = await Promise.all([fetch(seriesUrl), fetch(`${API_BASE}/data/summary/${symbol}`)]);
+        const [seriesRes, summaryRes, providerRes] = await Promise.all([
+          fetch(seriesUrl),
+          fetch(`${API_BASE}/data/summary/${symbol}`),
+          fetch(`${API_BASE}/data/provider-status/${symbol}`).catch(() => null),
+        ]);
 
         if (!seriesRes.ok || !summaryRes.ok) {
           const seriesBody = await seriesRes.json().catch(() => null);
@@ -387,6 +393,18 @@ function App() {
             source: sessionSource || "unknown",
             message: sessionMessage || "Session data loaded.",
           });
+          const fallback = (sessionSource || "").toLowerCase() === "fallback_daily";
+          setIsDemoMode(fallback);
+          setDemoMessage(
+            fallback
+              ? sessionMessage || "Using fallback session data for demonstration."
+              : ""
+          );
+        } else {
+          const providerData = providerRes && providerRes.ok ? await providerRes.json() : null;
+          const demo = providerData ? !providerData.is_live : false;
+          setIsDemoMode(demo);
+          setDemoMessage(demo ? providerData?.message || "Live API unavailable." : "");
         }
       } catch (err) {
         if (!mounted) return;
@@ -394,6 +412,8 @@ function App() {
         setSummary(null);
         setPrediction(null);
         setSessionStatus(null);
+        setIsDemoMode(false);
+        setDemoMessage("");
         setStockError(err.message || "Could not load selected stock data.");
       } finally {
         if (mounted) setStockLoading(false);
@@ -477,16 +497,29 @@ function App() {
 
   return (
     <div className="app-shell">
+      {isDemoMode && (
+        <div className="demo-banner">
+          ⚠️ <strong>DEMONSTRATION MODE</strong> - {demoMessage || "Live API data is unavailable. Showing fallback/MOCK data."}
+        </div>
+      )}
+      
       <header className="topbar">
         <div>
           <h1>Stock Intelligence Dashboard</h1>
           <p>Fast insights on selected stocks with seamless analysis views.</p>
         </div>
-        <div className="topbar-tag">Live API</div>
+        <div className={`topbar-tag ${isDemoMode ? "demo" : ""}`}>{isDemoMode ? "DEMO" : "Live API"}</div>
       </header>
 
       <main className="layout">
         <aside className="sidebar">
+          {isDemoMode && (
+            <div className="demo-note">
+              <strong>📊 Demo Data</strong>
+              <p>{demoMessage || "Live API data is unavailable for this symbol."}</p>
+            </div>
+          )}
+          
           <div className="search-wrap">
             <input
               value={search}
