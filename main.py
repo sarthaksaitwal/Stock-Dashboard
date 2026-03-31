@@ -12,6 +12,7 @@ from config.settings import settings
 from app.core.database import init_db
 from app.api.endpoints import companies_router, stocks_router
 import logging
+import logging.config
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -19,8 +20,61 @@ FRONTEND_DIR = BASE_DIR / "frontend"
 STATIC_DIR = FRONTEND_DIR / "static"
 TEMPLATE_FILE = FRONTEND_DIR / "templates" / "index.html"
 
-# Setup logging
-logging.basicConfig(level=settings.log_level)
+def _configure_logging() -> None:
+    """Configure application and server logging to console + file."""
+    configured_path = Path(settings.log_file)
+    log_path = configured_path if configured_path.is_absolute() else (BASE_DIR / configured_path)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    logging.config.dictConfig(
+        {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "formatters": {
+                "default": {
+                    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                }
+            },
+            "handlers": {
+                "console": {
+                    "class": "logging.StreamHandler",
+                    "formatter": "default",
+                    "level": settings.log_level,
+                },
+                "file": {
+                    "class": "logging.FileHandler",
+                    "formatter": "default",
+                    "level": settings.log_level,
+                    "filename": str(log_path),
+                    "encoding": "utf-8",
+                },
+            },
+            "root": {
+                "handlers": ["console", "file"],
+                "level": settings.log_level,
+            },
+            "loggers": {
+                "uvicorn": {
+                    "handlers": ["console", "file"],
+                    "level": settings.log_level,
+                    "propagate": False,
+                },
+                "uvicorn.error": {
+                    "handlers": ["console", "file"],
+                    "level": settings.log_level,
+                    "propagate": False,
+                },
+                "uvicorn.access": {
+                    "handlers": ["console", "file"],
+                    "level": settings.log_level,
+                    "propagate": False,
+                },
+            },
+        }
+    )
+
+
+_configure_logging()
 logger = logging.getLogger(__name__)
 
 
