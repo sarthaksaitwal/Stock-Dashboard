@@ -347,7 +347,7 @@ async def get_top_gainers(
     Get top performing stocks in a given period.
     
     Query Parameters:
-        days: Number of days to analyze (default: 1)
+        days: Number of days to analyze (default: 1 for today vs yesterday)
         limit: Number of results to return (default: 5)
         
     Returns:
@@ -368,7 +368,11 @@ async def get_top_gainers(
         ]
     """
     try:
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        # For days=1, compare today vs yesterday; for days>1, use normal range
+        if days == 1:
+            cutoff_date = datetime.utcnow() - timedelta(days=2)
+        else:
+            cutoff_date = datetime.utcnow() - timedelta(days=days)
         
         # Get all stocks and their performance
         stocks = db.query(Company.symbol).all()
@@ -397,7 +401,7 @@ async def get_top_gainers(
         # Sort by change percentage and return top N
         gainers = sorted(gainers, key=lambda x: x["change_percent"], reverse=True)
         
-        logger.info(f"Retrieved top {limit} gainers")
+        logger.info(f"Retrieved top {limit} gainers for {days} day(s)")
         return gainers[:limit]
         
     except Exception as e:
@@ -418,7 +422,7 @@ async def get_top_losers(
     Get worst performing stocks in a given period.
     
     Query Parameters:
-        days: Number of days to analyze (default: 1)
+        days: Number of days to analyze (default: 1 for today vs yesterday)
         limit: Number of results to return (default: 5)
         
     Returns:
@@ -439,7 +443,11 @@ async def get_top_losers(
         ]
     """
     try:
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        # For days=1, compare today vs yesterday; for days>1, use normal range
+        if days == 1:
+            cutoff_date = datetime.utcnow() - timedelta(days=2)
+        else:
+            cutoff_date = datetime.utcnow() - timedelta(days=days)
         
         # Get all stocks and their performance
         stocks = db.query(Company.symbol).all()
@@ -468,7 +476,7 @@ async def get_top_losers(
         # Sort by change percentage (ascending for losers)
         losers = sorted(losers, key=lambda x: x["change_percent"])
         
-        logger.info(f"Retrieved top {limit} losers")
+        logger.info(f"Retrieved top {limit} losers for {days} day(s)")
         return losers[:limit]
         
     except Exception as e:
