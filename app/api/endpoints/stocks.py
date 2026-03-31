@@ -3,15 +3,21 @@ Stock data API endpoints.
 Handles stock price data, summaries, and comparisons.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
 from datetime import datetime, timedelta
-from math import sqrt
-from app.core.database import get_db
+from math import sqrt, sin, pi
+import random
+import asyncio
+import os
+import requests
+from app.core.database import get_db, SessionLocal
 from app.models import StockData, Company
 from app.schemas.stock import StockDataSchema, StockSummarySchema, PredictionResponseSchema
 from app.services.prediction_service import PredictionService
+from app.services.realtime_service import RealtimeQuoteService
+from config.settings import settings
 from typing import List, Optional
 import logging
 
@@ -22,6 +28,113 @@ router = APIRouter(
     tags=["stock-data"],
     responses={404: {"description": "Stock data not found"}}
 )
+
+realtime_quote_service = RealtimeQuoteService()
+
+
+ALPHA_VANTAGE_SYMBOLS = {
+    "INFY": "INFY.BSE",
+    "TCS": "TCS.BSE",
+    "WIPRO": "WIPRO.BSE",
+    "RELIANCE": "RELIANCE.BSE",
+    "BAJAJFINSV": "BAJAJFINSV.BSE",
+    "LT": "LT.BSE",
+    "HINDUNILVR": "HINDUNILVR.BSE",
+    "ITC": "ITC.BSE",
+    "MARUTI": "MARUTI.BSE",
+    "MM": "M&M.BSE",
+}
+
+
+def _alpha_symbol(symbol: str) -> str:
+    return ALPHA_VANTAGE_SYMBOLS.get(symbol.upper(), f"{symbol.upper()}.BSE")
+
+
+def _build_session_points_from_daily(
+    db: Session,
+    symbol: str,
+    selected_date,
+    interval: str,
+) -> List[dict]:
+    """Fallback: synthesize intraday session points from stored daily candle."""
+    interval_minutes = {"1min": 1, "5min": 5, "15min": 15, "30min": 30, "60min": 60}[interval]
+
+    daily_row = db.query(StockData).filter(
+        StockData.symbol == symbol.upper(),
+        func.date(StockData.date) <= selected_date
+    ).order_by(StockData.date.desc()).first()
+
+    if not daily_row:
+        return []
+
+    market_start = datetime.combine(selected_date, datetime.strptime("09:15", "%H:%M").time())
+    market_end = datetime.combine(selected_date, datetime.strptime("15:30", "%H:%M").time())
+
+    total_minutes = int((market_end - market_start).total_seconds() // 60)
+    points = (total_minutes // interval_minutes) + 1
+    if points < 2:
+        points = 2
+
+    open_price = float(daily_row.open_price)
+    close_price = float(daily_row.close_price)
+    day_high = float(daily_row.high_price)
+    day_low = float(daily_row.low_price)
+    volume = int(daily_row.volume or 0)
+    span = max(day_high - day_low, max(open_price, close_price) * 0.002)
+
+    seed = abs(hash(f"{symbol.upper()}-{selected_date.isoformat()}-{interval}")) % (2**32)
+    rng = random.Random(seed)
+
+    rows = []
+    for idx in range(points):
+        ratio = idx / (points - 1)
+        ts = market_start + timedelta(minutes=idx * interval_minutes)
+
+        # Brownian-bridge style drift from open->close with intraday wave + noise.
+        base_close = open_price + (close_price - open_price) * ratio
+        wave = sin(2 * pi * ratio) * span * (0.12 + rng.uniform(0.02, 0.08))
+        noise = rng.uniform(-1.0, 1.0) * span * (0.05 + 0.06 * (1 - abs(0.5 - ratio) * 2))
+        close_i = base_close + wave + noise
+        close_i = max(day_low, min(day_high, close_i))
+
+        open_i = open_price if idx == 0 else rows[-1]["close_price"]
+        high_i = max(open_i, close_i)
+        low_i = min(open_i, close_i)
+
+        if idx == max(1, points // 3):
+            high_i = max(high_i, day_high)
+        if idx == max(1, (2 * points) // 3):
+            low_i = min(low_i, day_low)
+
+        # Ensure first/last bars anchor to daily open/close.
+        if idx == 0:
+            open_i = open_price
+            close_i = max(day_low, min(day_high, open_price))
+            high_i = max(high_i, open_i, close_i)
+            low_i = min(low_i, open_i, close_i)
+        if idx == points - 1:
+            close_i = max(day_low, min(day_high, close_price))
+            high_i = max(high_i, open_i, close_i)
+            low_i = min(low_i, open_i, close_i)
+
+        volume_i = int(volume / points) if volume > 0 else 0
+
+        rows.append(
+            {
+                "symbol": symbol.upper(),
+                "date": ts.isoformat(),
+                "open_price": round(float(open_i), 4),
+                "high_price": round(float(high_i), 4),
+                "low_price": round(float(low_i), 4),
+                "close_price": round(float(close_i), 4),
+                "volume": volume_i,
+                "daily_return": None,
+                "moving_avg_7": None,
+                "moving_avg_30": None,
+            }
+        )
+
+    return rows
 
 
 def _pearson_correlation(values_a: List[float], values_b: List[float]) -> float:
@@ -41,6 +154,124 @@ def _pearson_correlation(values_a: List[float], values_b: List[float]) -> float:
         return 0.0
 
     return numerator / denominator
+
+
+@router.get("/session/{symbol}", response_model=List[dict])
+async def get_market_session_data(
+    symbol: str,
+    trade_date: str = Query(..., description="Session date in YYYY-MM-DD format"),
+    interval: str = Query("5min", description="Alpha Vantage intraday interval"),
+    api_response: Response = None,
+    db: Session = Depends(get_db),
+):
+    """Get all intraday points for one market session date for a stock symbol."""
+    try:
+        company = db.query(Company).filter(Company.symbol.ilike(symbol)).first()
+        if not company:
+            raise HTTPException(status_code=404, detail=f"Company with symbol '{symbol}' not found")
+
+        try:
+            selected_date = datetime.strptime(trade_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid trade_date. Use YYYY-MM-DD format")
+
+        allowed_intervals = {"1min", "5min", "15min", "30min", "60min"}
+        if interval not in allowed_intervals:
+            raise HTTPException(status_code=400, detail="Invalid interval. Use one of 1min, 5min, 15min, 30min, 60min")
+
+        rows: List[dict] = []
+        source = "fallback_daily"
+        fallback_reason = "live intraday data unavailable"
+        api_key = os.getenv("ALPHA_VANTAGE_API_KEY", "").strip()
+
+        if api_key:
+            try:
+                provider_response = requests.get(
+                    "https://www.alphavantage.co/query",
+                    params={
+                        "function": "TIME_SERIES_INTRADAY",
+                        "symbol": _alpha_symbol(symbol),
+                        "interval": interval,
+                        "outputsize": "full",
+                        "apikey": api_key,
+                    },
+                    timeout=25,
+                )
+                provider_response.raise_for_status()
+                payload = provider_response.json()
+
+                ts_key = f"Time Series ({interval})"
+                timeseries = payload.get(ts_key)
+
+                if "Error Message" in payload:
+                    fallback_reason = "Alpha Vantage returned an error response"
+                elif "Note" in payload:
+                    fallback_reason = "Alpha Vantage rate limit reached"
+                elif not timeseries:
+                    fallback_reason = "intraday time series missing in provider response"
+                else:
+                    for ts_str, point in timeseries.items():
+                        try:
+                            ts = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
+                        except ValueError:
+                            continue
+                        if ts.date() != selected_date:
+                            continue
+                        rows.append(
+                            {
+                                "symbol": symbol.upper(),
+                                "date": ts.isoformat(),
+                                "open_price": float(point.get("1. open", 0)),
+                                "high_price": float(point.get("2. high", 0)),
+                                "low_price": float(point.get("3. low", 0)),
+                                "close_price": float(point.get("4. close", 0)),
+                                "volume": int(float(point.get("5. volume", 0))),
+                                "daily_return": None,
+                                "moving_avg_7": None,
+                                "moving_avg_30": None,
+                            }
+                        )
+                    if rows:
+                        source = "live_api"
+                    else:
+                        fallback_reason = f"no intraday points returned for selected date {trade_date}"
+            except requests.RequestException as e:
+                fallback_reason = "provider request failed"
+                logger.warning(f"Intraday provider request failed for {symbol}: {str(e)}")
+        else:
+            fallback_reason = "ALPHA_VANTAGE_API_KEY not configured"
+
+        if not rows:
+            rows = _build_session_points_from_daily(db, symbol, selected_date, interval)
+            source = "fallback_daily"
+
+        if not rows:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No session points found for {symbol.upper()} on {trade_date}",
+            )
+
+        rows.sort(key=lambda item: item["date"])
+
+        if api_response is not None:
+            if source == "live_api":
+                api_response.headers["X-Session-Source"] = "live_api"
+                api_response.headers["X-Session-Message"] = "Live intraday data loaded from Alpha Vantage API."
+            else:
+                api_response.headers["X-Session-Source"] = "fallback_daily"
+                api_response.headers["X-Session-Message"] = (
+                    "Fallback session data generated from stored daily candle because "
+                    f"{fallback_reason}."
+                )
+
+        logger.info(f"Retrieved {len(rows)} intraday points for {symbol.upper()} on {trade_date}")
+        return rows
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching market session data for {symbol}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching market session data: {str(e)}")
 
 
 @router.get("/{symbol}", response_model=List[StockDataSchema])
@@ -630,3 +861,73 @@ async def get_stock_prediction(
             status_code=500,
             detail=f"Error generating prediction: {str(e)}"
         )
+
+
+@router.get("/realtime/{symbol}", response_model=dict)
+async def get_realtime_quote(
+    symbol: str,
+    db: Session = Depends(get_db),
+):
+    """Realtime-ready quote endpoint kept dormant behind feature flag."""
+    if not settings.realtime_feature_enabled:
+        raise HTTPException(
+            status_code=503,
+            detail="Realtime feature is disabled. Enable REALTIME_FEATURE_ENABLED to activate.",
+        )
+
+    company = db.query(Company).filter(Company.symbol.ilike(symbol)).first()
+    if not company:
+        raise HTTPException(status_code=404, detail=f"Company with symbol '{symbol}' not found")
+
+    quote = realtime_quote_service.get_quote_snapshot(
+        db=db,
+        symbol=company.symbol,
+        api_key=os.getenv("ALPHA_VANTAGE_API_KEY", "").strip(),
+        cache_ttl_seconds=settings.realtime_cache_ttl_seconds,
+    )
+    return quote
+
+
+@router.websocket("/ws/realtime/{symbol}")
+async def stream_realtime_quote(websocket: WebSocket, symbol: str):
+    """Realtime-ready stream endpoint kept dormant behind feature flag."""
+    await websocket.accept()
+
+    if not settings.realtime_feature_enabled:
+        await websocket.send_json(
+            {
+                "type": "error",
+                "detail": "Realtime feature is disabled. Enable REALTIME_FEATURE_ENABLED to activate.",
+            }
+        )
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    db = SessionLocal()
+    try:
+        company = db.query(Company).filter(Company.symbol.ilike(symbol)).first()
+        if not company:
+            await websocket.send_json({"type": "error", "detail": f"Company with symbol '{symbol}' not found"})
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+        while True:
+            quote = realtime_quote_service.get_quote_snapshot(
+                db=db,
+                symbol=company.symbol,
+                api_key=os.getenv("ALPHA_VANTAGE_API_KEY", "").strip(),
+                cache_ttl_seconds=settings.realtime_cache_ttl_seconds,
+            )
+
+            await websocket.send_json(
+                {
+                    "type": "quote",
+                    "symbol": company.symbol,
+                    "payload": quote,
+                }
+            )
+            await asyncio.sleep(max(1, settings.realtime_poll_seconds))
+    except WebSocketDisconnect:
+        logger.info(f"Realtime websocket disconnected for symbol {symbol}")
+    finally:
+        db.close()

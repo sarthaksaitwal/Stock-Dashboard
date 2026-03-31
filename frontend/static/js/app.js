@@ -14,6 +14,10 @@ function formatINR(value) {
 function formatDateLabel(dateString) {
   const date = new Date(dateString);
   if (Number.isNaN(date.getTime())) return dateString;
+  const hasIntradayTime = date.getHours() !== 0 || date.getMinutes() !== 0 || date.getSeconds() !== 0;
+  if (hasIntradayTime) {
+    return date.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false });
+  }
   return date.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
 }
 
@@ -33,7 +37,7 @@ function useDebouncedValue(value, delay = 200) {
   return debounced;
 }
 
-function PriceChart({ series, symbol, days, prediction }) {
+function PriceChart({ series, symbol, days, prediction, viewMode, sessionDate }) {
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
 
@@ -43,7 +47,7 @@ function PriceChart({ series, symbol, days, prediction }) {
 
     const closePrices = series.map((d) => Number(d.close_price));
     const ma7 = series.map((d) => (d.moving_avg_7 != null ? Number(d.moving_avg_7) : null));
-    const forecastRows = prediction?.predictions || [];
+    const forecastRows = viewMode === "range" ? prediction?.predictions || [] : [];
     const forecast = forecastRows.map((item) => Number(item.predicted_close));
     const upperBand = forecastRows.map((item) => Number(item.upper_95));
     const lowerBand = forecastRows.map((item) => Number(item.lower_95));
@@ -92,7 +96,10 @@ function PriceChart({ series, symbol, days, prediction }) {
         pointRadius: 0,
         pointHoverRadius: 5,
       },
-      {
+    ];
+
+    if (ma7.some((value) => value != null)) {
+      datasets.push({
         label: "MA 7",
         data: ma7SeriesData,
         borderColor: "#f59e0b",
@@ -101,8 +108,8 @@ function PriceChart({ series, symbol, days, prediction }) {
         tension: 0.35,
         fill: false,
         pointRadius: 0,
-      },
-    ];
+      });
+    }
 
     if (forecastHorizon > 0) {
       datasets.push(
@@ -175,7 +182,7 @@ function PriceChart({ series, symbol, days, prediction }) {
             ticks: { color: "#64748b", maxTicksLimit: 8 },
             title: {
               display: true,
-              text: `Last ${days} days`,
+              text: viewMode === "session" ? `Session: ${sessionDate}` : `Last ${days} days`,
               color: "#64748b",
             },
           },
@@ -198,7 +205,7 @@ function PriceChart({ series, symbol, days, prediction }) {
         chartRef.current = null;
       }
     };
-  }, [series, symbol, days, prediction]);
+  }, [series, symbol, days, prediction, viewMode, sessionDate]);
 
   return (
     <div className="chart-card">
@@ -245,12 +252,19 @@ function App() {
 
   const [selected, setSelected] = useState(null);
   const [days, setDays] = useState(30);
+  const [viewMode, setViewMode] = useState("range");
+  const [sessionDate, setSessionDate] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 1);
+    return date.toISOString().slice(0, 10);
+  });
 
   const [series, setSeries] = useState([]);
   const [summary, setSummary] = useState(null);
   const [prediction, setPrediction] = useState(null);
   const [stockLoading, setStockLoading] = useState(false);
   const [stockError, setStockError] = useState("");
+  const [sessionStatus, setSessionStatus] = useState(null);
   const [comparisonSymbol, setComparisonSymbol] = useState("");
   const [correlation, setCorrelation] = useState(null);
   const [correlationLoading, setCorrelationLoading] = useState(false);
@@ -322,44 +336,64 @@ function App() {
     async function loadSelectedStock() {
       setStockLoading(true);
       setStockError("");
+      if (viewMode !== "session") {
+        setSessionStatus(null);
+      }
       try {
         const symbol = selected.symbol;
         const trainingDays = Math.max(days, 180);
-        const [seriesRes, summaryRes] = await Promise.all([
-          fetch(`${API_BASE}/data/${symbol}?days=${days}`),
-          fetch(`${API_BASE}/data/summary/${symbol}`),
-        ]);
+        const seriesUrl =
+          viewMode === "session"
+            ? `${API_BASE}/data/session/${symbol}?trade_date=${encodeURIComponent(sessionDate)}&interval=5min`
+            : `${API_BASE}/data/${symbol}?days=${days}`;
+
+        const [seriesRes, summaryRes] = await Promise.all([fetch(seriesUrl), fetch(`${API_BASE}/data/summary/${symbol}`)]);
 
         if (!seriesRes.ok || !summaryRes.ok) {
+          const seriesBody = await seriesRes.json().catch(() => null);
+          const summaryBody = await summaryRes.json().catch(() => null);
+          const serverDetail = seriesBody?.detail || summaryBody?.detail;
           if (seriesRes.status === 404 || summaryRes.status === 404) {
-            throw new Error("No stock data found. Run populate_database.py to load historical records.");
+            throw new Error(serverDetail || "No stock data found. Run populate_database.py to load historical records.");
           }
-          throw new Error("Failed to fetch stock data");
+          throw new Error(serverDetail || "Failed to fetch stock data");
         }
 
         const [seriesData, summaryData] = await Promise.all([seriesRes.json(), summaryRes.json()]);
 
+        const sessionSource = seriesRes.headers.get("x-session-source");
+        const sessionMessage = seriesRes.headers.get("x-session-message");
+
         let predictionData = null;
-        try {
-          const predictionRes = await fetch(
-            `${API_BASE}/data/prediction/${symbol}?history_days=${trainingDays}&horizon=7`
-          );
-          if (predictionRes.ok) {
-            predictionData = await predictionRes.json();
+        if (viewMode === "range") {
+          try {
+            const predictionRes = await fetch(
+              `${API_BASE}/data/prediction/${symbol}?history_days=${trainingDays}&horizon=7`
+            );
+            if (predictionRes.ok) {
+              predictionData = await predictionRes.json();
+            }
+          } catch (predictionErr) {
+            predictionData = null;
           }
-        } catch (predictionErr) {
-          predictionData = null;
         }
 
         if (!mounted) return;
         setSeries(seriesData || []);
         setSummary(summaryData || null);
         setPrediction(predictionData || null);
+        if (viewMode === "session") {
+          setSessionStatus({
+            source: sessionSource || "unknown",
+            message: sessionMessage || "Session data loaded.",
+          });
+        }
       } catch (err) {
         if (!mounted) return;
         setSeries([]);
         setSummary(null);
         setPrediction(null);
+        setSessionStatus(null);
         setStockError(err.message || "Could not load selected stock data.");
       } finally {
         if (mounted) setStockLoading(false);
@@ -371,7 +405,7 @@ function App() {
     return () => {
       mounted = false;
     };
-  }, [selected, days]);
+  }, [selected, days, viewMode, sessionDate]);
 
   useEffect(() => {
     if (!selected?.symbol || companies.length === 0) return;
@@ -386,6 +420,18 @@ function App() {
   }, [selected, companies, comparisonSymbol]);
 
   useEffect(() => {
+    if (viewMode === "session") {
+      setCorrelation(null);
+      setCorrelationError("");
+      return;
+    }
+
+    if (days < 30) {
+      setCorrelation(null);
+      setCorrelationError("Correlation is available for 30+ day windows.");
+      return;
+    }
+
     if (!selected?.symbol || !comparisonSymbol || selected.symbol === comparisonSymbol) {
       setCorrelation(null);
       return;
@@ -420,7 +466,7 @@ function App() {
     return () => {
       mounted = false;
     };
-  }, [selected, comparisonSymbol, days]);
+  }, [selected, comparisonSymbol, days, viewMode]);
 
   const trendUp = useMemo(() => {
     if (!series || series.length < 2) return true;
@@ -465,6 +511,7 @@ function App() {
                   onClick={() => {
                     setSelected(company);
                     setDays(30);
+                    setViewMode("range");
                   }}
                 >
                   <div className="company-top">
@@ -523,21 +570,54 @@ function App() {
               </div>
 
               <div className="filters">
+                <button
+                  onClick={() => setViewMode("session")}
+                  className={viewMode === "session" ? "active" : ""}
+                >
+                  Session Day
+                </button>
+                {viewMode === "session" && (
+                  <input
+                    type="date"
+                    value={sessionDate}
+                    max={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => setSessionDate(e.target.value)}
+                  />
+                )}
                 {[30, 90, 365].map((d) => (
                   <button
                     key={d}
-                    onClick={() => setDays(d)}
-                    className={days === d ? "active" : ""}
+                    onClick={() => {
+                      setViewMode("range");
+                      setDays(d);
+                    }}
+                    className={viewMode === "range" && days === d ? "active" : ""}
                   >
                     {d === 365 ? "Last Year" : `Last ${d} Days`}
                   </button>
                 ))}
               </div>
 
+              {viewMode === "session" && sessionStatus?.message && (
+                <div className={`state-msg ${sessionStatus.source === "fallback_daily" ? "warning" : ""}`}>
+                  {sessionStatus.source === "fallback_daily"
+                    ? "Session source: Fallback. "
+                    : "Session source: Live API. "}
+                  {sessionStatus.message}
+                </div>
+              )}
+
               {stockLoading && <div className="state-msg">Loading stock analysis...</div>}
               {stockError && <div className="state-msg error">{stockError}</div>}
               {!stockLoading && !stockError && series.length > 0 && (
-                <PriceChart series={series} symbol={selected.symbol} days={days} prediction={prediction} />
+                <PriceChart
+                  series={series}
+                  symbol={selected.symbol}
+                  days={days}
+                  prediction={prediction}
+                  viewMode={viewMode}
+                  sessionDate={sessionDate}
+                />
               )}
               {!stockLoading && !stockError && series.length === 0 && (
                 <div className="state-msg">No chart data available for this stock.</div>

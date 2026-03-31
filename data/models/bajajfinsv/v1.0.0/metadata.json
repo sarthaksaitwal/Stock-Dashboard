@@ -1,7 +1,7 @@
 {
   "model_type": "xgboost-regressor",
   "pipeline_version": "v1.0.0",
-  "trained_at": "2026-03-31T06:50:49.145782",
+  "trained_at": "2026-03-31T11:17:25.861909",
   "history_days": 180,
   "feature_names": [
     "daily_return",

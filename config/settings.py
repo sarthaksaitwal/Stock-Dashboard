@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     
     # Data Update Schedule
     data_update_interval: int = 24  # hours
+
+    # Realtime Feature Flags (disabled by default to avoid affecting current workflow)
+    realtime_feature_enabled: bool = False
+    realtime_poll_seconds: int = 20
+    realtime_cache_ttl_seconds: int = 15
     
     # Logging
     log_level: str = "INFO"

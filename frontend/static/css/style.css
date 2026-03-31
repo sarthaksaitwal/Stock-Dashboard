@@ -467,6 +467,12 @@ body {
   color: #972b24;
 }
 
+.state-msg.warning {
+  border-color: #f3dca4;
+  background: #fff8e8;
+  color: #7a4a00;
+}
+
 @media (max-width: 1060px) {
   .layout {
     grid-template-columns: 280px 1fr;
