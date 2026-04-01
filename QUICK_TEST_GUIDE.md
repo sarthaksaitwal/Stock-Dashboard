@@ -52,7 +52,6 @@ Then open browser: **http://localhost:8000**
 ```
 ✅ Click "Last 30 Days"  → Chart updates (default)
 ✅ Click "Last 90 Days"  → Chart updates with more data
-✅ Click "Last Year"     → Chart updates with yearly data
 ```
 
 ### Test 5: Analytics Display ✅

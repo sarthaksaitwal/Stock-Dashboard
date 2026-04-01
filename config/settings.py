@@ -26,7 +26,7 @@ class Settings(BaseSettings):
         "INFY", "TCS", "WIPRO", "RELIANCE", "BAJAJFINSV",
         "LT", "HINDUNILVR", "ITC", "MARUTI", "M&M"
     ]
-    date_range_days: int = 365
+    date_range_days: int = 100
     
     # API Keys
     alpha_vantage_api_key: str = ""

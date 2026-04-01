@@ -41,7 +41,6 @@ I've built a **fully interactive frontend dashboard** that connects to your API 
 ### **4. Time Period Filters** ✅
 - Last 30 Days (default)
 - Last 90 Days
-- Last Year (365 days)
 - Click to update chart
 - Visual active state
 
@@ -184,7 +183,6 @@ You should see:
 
 #### **D. Time Filters**
 - Click "Last 90 Days" → Chart updates
-- Click "Last Year" → Chart updates
 - Click "Last 30 Days" → Back to 30-day view
 
 #### **E. Analytics**
@@ -212,7 +210,7 @@ You should see:
 │ 52-Week Low      │ ₹ 1400.00    │
 │ Avg Close (52w)  │ ₹ 1505.42    │
 ├─────────────────────────────────┤
-│ [Chart with 30/90/365 options]  │
+│ [Chart with 30/90 options]      │
 ├─────────────────────────────────┤
 │ 🔥 Top Gainers    📉 Top Losers │
 │ INFY +1.33%       WIPRO -2.86%  │
@@ -442,7 +440,7 @@ Light Gray:      #f9fafb  (background)
 | **Companies Display** | ✅ Complete | Load, search, select |
 | **Stock Charts** | ✅ Complete | Interactive, filterable |
 | **Metrics Cards** | ✅ Complete | 52-week stats |
-| **Time Filters** | ✅ Complete | 30/90/365 days |
+| **Time Filters** | ✅ Complete | 30/90 days |
 | **Top Gainers/Losers** | ✅ Complete | Daily performance |
 | **Error Handling** | ✅ Complete | User-friendly messages |
 | **Responsive Design** | ✅ Complete | Mobile, tablet, desktop |
@@ -472,7 +470,6 @@ Run through all these to verify everything works:
 - [ ] Stock details appear in main area
 - [ ] Chart displays with 30-day data
 - [ ] "Last 90 Days" button updates chart
-- [ ] "Last Year" button updates chart
 - [ ] Price metrics show correct values (₹ format)
 - [ ] No console errors (F12 to check)
 - [ ] Top gainers section visible at bottom

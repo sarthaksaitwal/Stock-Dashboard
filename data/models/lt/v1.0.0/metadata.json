@@ -1,7 +1,7 @@
 {
   "model_type": "xgboost-regressor",
   "pipeline_version": "v1.0.0",
-  "trained_at": "2026-03-31T11:19:30.201884",
+  "trained_at": "2026-04-01T04:59:19.029544",
   "history_days": 180,
   "feature_names": [
     "daily_return",
@@ -13,15 +13,15 @@
     "macd_signal",
     "macd_hist"
   ],
-  "training_rows": 90,
-  "test_rows": 23,
+  "training_rows": 46,
+  "test_rows": 12,
   "metrics": {
-    "mae": 127.7408,
-    "rmse": 149.5342
+    "mae": 78.9185,
+    "rmse": 96.0889
   },
   "artifact_path": "D:/JarNox/stock-dashboard/data/models/lt/v1.0.0/model.json",
-  "data_as_of_date": "2026-03-31",
-  "residual_std": 77.735226,
-  "cache_hit": true,
-  "last_known_close": 3002.73
+  "data_as_of_date": "2026-04-01",
+  "residual_std": 70.737042,
+  "cache_hit": false,
+  "last_known_close": 3608.34
 }

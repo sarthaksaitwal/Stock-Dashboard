@@ -8,7 +8,7 @@ Usage:
 This script will:
 1. Create all database tables
 2. Fetch company information
-3. Fetch historical stock data (365 days)
+3. Fetch historical stock data (100 days)
 4. Calculate metrics (Daily Return, Moving Averages)
 5. Store everything in the database
 """
@@ -22,6 +22,11 @@ import numpy as np
 from datetime import datetime, timedelta
 import logging
 from dotenv import load_dotenv
+
+try:
+    from nselib import capital_market
+except ImportError:
+    capital_market = None
 
 # Load environment variables from .env file
 load_dotenv()
@@ -125,6 +130,11 @@ ALPHA_VANTAGE_SYMBOLS = {
 }
 
 
+NSELIB_SYMBOLS = {
+    "MM": "M&M",
+}
+
+
 def init_database():
     """Initialize database tables."""
     logger.info("Creating database tables...")
@@ -153,9 +163,9 @@ def populate_companies(db):
     logger.info(f"✅ Added {len(companies)} companies")
 
 
-def fetch_and_clean_data(symbol: str, days: int = 365) -> pd.DataFrame:
+def fetch_and_clean_data(symbol: str, days: int = 100) -> pd.DataFrame:
     """
-    Fetch stock data from Alpha Vantage and clean it.
+    Fetch stock data from available providers and clean it.
     
     Args:
         symbol: Stock symbol
@@ -173,7 +183,14 @@ def fetch_and_clean_data(symbol: str, days: int = 365) -> pd.DataFrame:
             logger.info(f"    Retrieved {len(alpha_data)} records from Alpha Vantage for {symbol}")
             return alpha_data
 
-        logger.warning(f"    Alpha Vantage unavailable for {symbol}. Trying yfinance fallback...")
+        logger.warning(f"    Alpha Vantage unavailable for {symbol}. Trying NSELib fallback...")
+
+        nselib_data = fetch_from_nselib(symbol, days)
+        if nselib_data is not None and not nselib_data.empty:
+            logger.info(f"    Retrieved {len(nselib_data)} records from NSELib for {symbol}")
+            return nselib_data
+
+        logger.warning(f"    NSELib unavailable for {symbol}. Trying yfinance fallback...")
 
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
@@ -225,7 +242,7 @@ def fetch_from_alpha_vantage(symbol: str, days: int) -> pd.DataFrame:
             params={
                 "function": "TIME_SERIES_DAILY",
                 "symbol": provider_symbol,
-                "outputsize": "full",
+                "outputsize": "compact",
                 "apikey": api_key,
             },
             timeout=25,
@@ -239,6 +256,10 @@ def fetch_from_alpha_vantage(symbol: str, days: int) -> pd.DataFrame:
 
         if "Note" in payload:
             logger.warning(f"    Alpha Vantage rate limit hit for {symbol}: {payload['Note']}")
+            return None
+
+        if "Information" in payload:
+            logger.warning(f"    Alpha Vantage info response for {symbol}: {payload['Information']}")
             return None
 
         ts_key = next((k for k in payload.keys() if "Time Series" in k), None)
@@ -279,7 +300,73 @@ def fetch_from_alpha_vantage(symbol: str, days: int) -> pd.DataFrame:
         return None
 
 
-def generate_synthetic_data(symbol: str, days: int = 365) -> pd.DataFrame:
+def _parse_numeric(value):
+    """Convert provider numeric payloads like '1,250.60' to float."""
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return np.nan
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        return float(value)
+    try:
+        return float(str(value).replace(",", "").strip())
+    except (TypeError, ValueError):
+        return np.nan
+
+
+def fetch_from_nselib(symbol: str, days: int) -> pd.DataFrame:
+    """Fetch daily historical OHLCV data from NSELib."""
+    if capital_market is None:
+        logger.warning("    NSELib package not installed")
+        return None
+
+    try:
+        provider_symbol = NSELIB_SYMBOLS.get(symbol, symbol)
+        to_date = datetime.now().strftime("%d-%m-%Y")
+        from_date = (datetime.now() - timedelta(days=max(days + 30, 45))).strftime("%d-%m-%Y")
+
+        raw = capital_market.price_volume_and_deliverable_position_data(
+            symbol=provider_symbol,
+            from_date=from_date,
+            to_date=to_date,
+        )
+
+        data = raw if isinstance(raw, pd.DataFrame) else pd.DataFrame(raw)
+        if data.empty:
+            return None
+
+        # Normalize headers (handles BOM + quotes found in upstream CSV field names).
+        data.columns = [str(col).replace("\ufeff", "").replace('"', "").strip() for col in data.columns]
+
+        required_cols = {"Date", "OpenPrice", "HighPrice", "LowPrice", "ClosePrice", "TotalTradedQuantity"}
+        if not required_cols.issubset(set(data.columns)):
+            logger.warning(f"    NSELib response missing required columns for {symbol}")
+            return None
+
+        data = data.loc[:, ["Date", "OpenPrice", "HighPrice", "LowPrice", "ClosePrice", "TotalTradedQuantity"]].copy()
+        data["Date"] = pd.to_datetime(data["Date"], format="%d-%b-%Y", errors="coerce")
+        data["Open"] = data["OpenPrice"].apply(_parse_numeric)
+        data["High"] = data["HighPrice"].apply(_parse_numeric)
+        data["Low"] = data["LowPrice"].apply(_parse_numeric)
+        data["Close"] = data["ClosePrice"].apply(_parse_numeric)
+        data["Volume"] = data["TotalTradedQuantity"].apply(_parse_numeric)
+
+        data = data.dropna(subset=["Date", "Open", "High", "Low", "Close", "Volume"])
+        if data.empty:
+            return None
+
+        data = data.sort_values("Date").tail(days).reset_index(drop=True)
+        data["Volume"] = data["Volume"].astype(int)
+
+        data["Daily_Return"] = ((data["Close"] - data["Open"]) / data["Open"] * 100).round(2)
+        data["MA7"] = data["Close"].rolling(window=7).mean().round(2)
+        data["MA30"] = data["Close"].rolling(window=30).mean().round(2)
+
+        return data[["Date", "Open", "High", "Low", "Close", "Volume", "Daily_Return", "MA7", "MA30"]]
+    except Exception as err:
+        logger.warning(f"    NSELib request failed for {symbol}: {str(err)}")
+        return None
+
+
+def generate_synthetic_data(symbol: str, days: int = 100) -> pd.DataFrame:
     """Generate deterministic synthetic market data when live feeds are unavailable."""
     end_date = datetime.now().date()
     start_date = end_date - timedelta(days=days)
@@ -341,7 +428,7 @@ def populate_stock_data(db):
             logger.info(f"Processing {symbol}...")
             
             # Fetch data
-            data = fetch_and_clean_data(symbol, days=365)
+            data = fetch_and_clean_data(symbol, days=100)
             
             if data is None:
                 logger.warning(f"  Skipped {symbol} - no data available")

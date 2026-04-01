@@ -271,8 +271,7 @@ function App() {
   const [correlationError, setCorrelationError] = useState("");
 
   const [analytics, setAnalytics] = useState({ gainers: [], losers: [] });
-  const [isDemoMode, setIsDemoMode] = useState(false);
-  const [demoMessage, setDemoMessage] = useState("");
+  const [dataSourceRemark, setDataSourceRemark] = useState("");
 
   const filteredCompanies = useMemo(() => {
     const term = debouncedSearch.trim().toLowerCase();
@@ -394,17 +393,23 @@ function App() {
             message: sessionMessage || "Session data loaded.",
           });
           const fallback = (sessionSource || "").toLowerCase() === "fallback_daily";
-          setIsDemoMode(fallback);
-          setDemoMessage(
+          setDataSourceRemark(
             fallback
-              ? sessionMessage || "Using fallback session data for demonstration."
-              : ""
+              ? `Data source: Fallback daily data. ${sessionMessage || "Using fallback session data."}`
+              : "Data source: Alpha Vantage intraday API."
           );
         } else {
           const providerData = providerRes && providerRes.ok ? await providerRes.json() : null;
-          const demo = providerData ? !providerData.is_live : false;
-          setIsDemoMode(demo);
-          setDemoMessage(demo ? providerData?.message || "Live API unavailable." : "");
+          const providerMessage = (providerData?.message || "").toLowerCase();
+          if (providerData?.is_live) {
+            setDataSourceRemark("Data source: Alpha Vantage daily API.");
+          } else if (providerMessage.includes("rate limit") || providerMessage.includes("quota")) {
+            setDataSourceRemark("Data source: NSELib fallback (Alpha Vantage quota limit reached).");
+          } else if (providerMessage.includes("not configured")) {
+            setDataSourceRemark("Data source: NSELib fallback (Alpha Vantage API key not configured).");
+          } else {
+            setDataSourceRemark("Data source: Fallback provider (NSELib/yfinance/stored data).");
+          }
         }
       } catch (err) {
         if (!mounted) return;
@@ -412,8 +417,7 @@ function App() {
         setSummary(null);
         setPrediction(null);
         setSessionStatus(null);
-        setIsDemoMode(false);
-        setDemoMessage("");
+        setDataSourceRemark("");
         setStockError(err.message || "Could not load selected stock data.");
       } finally {
         if (mounted) setStockLoading(false);
@@ -497,29 +501,17 @@ function App() {
 
   return (
     <div className="app-shell">
-      {isDemoMode && (
-        <div className="demo-banner">
-          ⚠️ <strong>DEMONSTRATION MODE</strong> - {demoMessage || "Live API data is unavailable. Showing fallback/MOCK data."}
-        </div>
-      )}
-      
       <header className="topbar">
         <div>
           <h1>Stock Intelligence Dashboard</h1>
           <p>Fast insights on selected stocks with seamless analysis views.</p>
+          {dataSourceRemark && <p className="muted-subtext">{dataSourceRemark}</p>}
         </div>
-        <div className={`topbar-tag ${isDemoMode ? "demo" : ""}`}>{isDemoMode ? "DEMO" : "Live API"}</div>
+        <div className="topbar-tag">Data Feed</div>
       </header>
 
       <main className="layout">
         <aside className="sidebar">
-          {isDemoMode && (
-            <div className="demo-note">
-              <strong>📊 Demo Data</strong>
-              <p>{demoMessage || "Live API data is unavailable for this symbol."}</p>
-            </div>
-          )}
-          
           <div className="search-wrap">
             <input
               value={search}
@@ -617,7 +609,7 @@ function App() {
                     onChange={(e) => setSessionDate(e.target.value)}
                   />
                 )}
-                {[30, 90, 365].map((d) => (
+                {[30, 90].map((d) => (
                   <button
                     key={d}
                     onClick={() => {
@@ -626,7 +618,7 @@ function App() {
                     }}
                     className={viewMode === "range" && days === d ? "active" : ""}
                   >
-                    {d === 365 ? "Last Year" : `Last ${d} Days`}
+                    {`Last ${d} Days`}
                   </button>
                 ))}
               </div>

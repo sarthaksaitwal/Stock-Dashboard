@@ -286,7 +286,7 @@ python populate_database.py
 **What it does:**
 - Creates database tables
 - Adds 10 companies
-- Fetches 365 days of OHLCV data for each
+- Fetches 100 days of OHLCV data for each
 - Calculates metrics (Daily Return, MA7, MA30)
 - Stores everything in database
 

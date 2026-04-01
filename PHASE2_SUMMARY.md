@@ -147,9 +147,9 @@ PLUS: daily_return, moving_avg_7, moving_avg_30
 - Automotive: MARUTI, MM
 
 **Data Range:**
-- History: Last 365 days (~252 trading days)
+- History: Last 100 days (~70 trading days)
 - Frequency: Daily OHLCV data
-- Total Records: ~2,520 rows (10 companies × 252 days)
+- Total Records: ~700 rows (10 companies × ~70 days)
 
 ---
 
@@ -294,7 +294,7 @@ Response: [
 | Case-insensitive search | Better UX, prevents errors |
 | Calculated metrics | More useful than raw data |
 | 10 blue-chip companies | Real-world data, representative sample |
-| 365-day history | Enough for analysis and 52-week calculations |
+| 100-day history | Faster ingestion and sufficient short-term trend analysis |
 
 ---
 

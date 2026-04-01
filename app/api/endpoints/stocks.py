@@ -10,7 +10,6 @@ from datetime import datetime, timedelta
 from math import sqrt, sin, pi
 import random
 import asyncio
-import os
 import requests
 from app.core.database import get_db, SessionLocal
 from app.models import StockData, Company
@@ -52,7 +51,7 @@ def _alpha_symbol(symbol: str) -> str:
 
 def _alpha_daily_available(symbol: str) -> tuple[bool, str]:
     """Quick probe to determine whether Alpha Vantage daily data is available."""
-    api_key = os.getenv("ALPHA_VANTAGE_API_KEY", "").strip()
+    api_key = settings.alpha_vantage_api_key.strip()
     if not api_key:
         return False, "ALPHA_VANTAGE_API_KEY is not configured"
 
@@ -228,7 +227,7 @@ async def get_market_session_data(
         rows: List[dict] = []
         source = "fallback_daily"
         fallback_reason = "live intraday data unavailable"
-        api_key = os.getenv("ALPHA_VANTAGE_API_KEY", "").strip()
+        api_key = settings.alpha_vantage_api_key.strip()
 
         if api_key:
             try:
@@ -238,7 +237,7 @@ async def get_market_session_data(
                         "function": "TIME_SERIES_INTRADAY",
                         "symbol": _alpha_symbol(symbol),
                         "interval": interval,
-                        "outputsize": "full",
+                        "outputsize": "compact",
                         "apikey": api_key,
                     },
                     timeout=25,
@@ -928,7 +927,7 @@ async def get_realtime_quote(
     quote = realtime_quote_service.get_quote_snapshot(
         db=db,
         symbol=company.symbol,
-        api_key=os.getenv("ALPHA_VANTAGE_API_KEY", "").strip(),
+        api_key=settings.alpha_vantage_api_key.strip(),
         cache_ttl_seconds=settings.realtime_cache_ttl_seconds,
     )
     return quote
@@ -961,7 +960,7 @@ async def stream_realtime_quote(websocket: WebSocket, symbol: str):
             quote = realtime_quote_service.get_quote_snapshot(
                 db=db,
                 symbol=company.symbol,
-                api_key=os.getenv("ALPHA_VANTAGE_API_KEY", "").strip(),
+                api_key=settings.alpha_vantage_api_key.strip(),
                 cache_ttl_seconds=settings.realtime_cache_ttl_seconds,
             )
 
