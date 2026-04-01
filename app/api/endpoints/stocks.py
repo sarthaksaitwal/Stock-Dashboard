@@ -644,21 +644,23 @@ async def get_top_gainers(
         ]
     """
     try:
-        # For days=1, compare today vs yesterday; for days>1, use normal range
-        if days == 1:
-            cutoff_date = datetime.utcnow() - timedelta(days=2)
-        else:
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
-        
         # Get all stocks and their performance
         stocks = db.query(Company.symbol).all()
         gainers = []
         
         for (symbol,) in stocks:
-            data = db.query(StockData).filter(
-                StockData.symbol == symbol,
-                StockData.date >= cutoff_date
-            ).order_by(StockData.date.asc()).all()
+            if days == 1:
+                # Compare the latest two available trading records to avoid weekend/holiday gaps.
+                data = db.query(StockData).filter(
+                    StockData.symbol == symbol,
+                ).order_by(StockData.date.desc()).limit(2).all()
+                data = list(reversed(data))
+            else:
+                cutoff_date = datetime.utcnow() - timedelta(days=days)
+                data = db.query(StockData).filter(
+                    StockData.symbol == symbol,
+                    StockData.date >= cutoff_date
+                ).order_by(StockData.date.asc()).all()
             
             if len(data) >= 2:
                 start_price = data[0].close_price
@@ -719,21 +721,23 @@ async def get_top_losers(
         ]
     """
     try:
-        # For days=1, compare today vs yesterday; for days>1, use normal range
-        if days == 1:
-            cutoff_date = datetime.utcnow() - timedelta(days=2)
-        else:
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
-        
         # Get all stocks and their performance
         stocks = db.query(Company.symbol).all()
         losers = []
         
         for (symbol,) in stocks:
-            data = db.query(StockData).filter(
-                StockData.symbol == symbol,
-                StockData.date >= cutoff_date
-            ).order_by(StockData.date.asc()).all()
+            if days == 1:
+                # Compare the latest two available trading records to avoid weekend/holiday gaps.
+                data = db.query(StockData).filter(
+                    StockData.symbol == symbol,
+                ).order_by(StockData.date.desc()).limit(2).all()
+                data = list(reversed(data))
+            else:
+                cutoff_date = datetime.utcnow() - timedelta(days=days)
+                data = db.query(StockData).filter(
+                    StockData.symbol == symbol,
+                    StockData.date >= cutoff_date
+                ).order_by(StockData.date.asc()).all()
             
             if len(data) >= 2:
                 start_price = data[0].close_price
