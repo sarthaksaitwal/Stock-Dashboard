@@ -30,6 +30,7 @@ body {
     radial-gradient(circle at 90% 0%, rgba(21, 128, 61, 0.1), transparent 28%),
     var(--bg);
   color: var(--text);
+  overflow-x: hidden;
 }
 
 .app-shell {
@@ -58,6 +59,10 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.4);
   background: linear-gradient(115deg, #0f62fe 0%, #0a44af 100%);
   color: #ffffff;
+}
+
+.topbar > div:first-child {
+  min-width: 0;
 }
 
 .topbar h1 {
@@ -94,6 +99,11 @@ body {
   display: grid;
   grid-template-columns: 320px 1fr;
   min-height: 0;
+}
+
+.sidebar,
+.content {
+  min-width: 0;
 }
 
 .sidebar {
@@ -301,6 +311,16 @@ body {
   flex-wrap: wrap;
 }
 
+.filters input[type="date"] {
+  border: 1px solid #cfdcf2;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.46rem 0.72rem;
+  color: var(--text);
+  font: inherit;
+  min-height: 2.3rem;
+}
+
 .filters button {
   border: 1px solid #cfdcf2;
   border-radius: 10px;
@@ -366,6 +386,10 @@ body {
 
 .chart-wrap {
   height: 320px;
+}
+
+.chart-wrap canvas {
+  max-width: 100%;
 }
 
 .model-metrics {
@@ -511,6 +535,99 @@ body {
   color: #7a4a00;
 }
 
+.stock-skeleton {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.skeleton-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.skeleton-line,
+.skeleton-chip,
+.skeleton-card,
+.skeleton-button,
+.skeleton-panel {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, #e9eff8 0%, #f7faff 50%, #e9eff8 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.45s ease-in-out infinite;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 999px;
+}
+
+.skeleton-line-lg {
+  width: min(260px, 70%);
+  height: 18px;
+}
+
+.skeleton-line-md {
+  width: min(180px, 55%);
+  height: 14px;
+}
+
+.skeleton-chip {
+  width: 86px;
+  height: 28px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+.skeleton-grid {
+  gap: 0.7rem;
+}
+
+.skeleton-card {
+  min-height: 90px;
+  border-radius: 14px;
+}
+
+.skeleton-filter-row {
+  margin-bottom: 0;
+}
+
+.skeleton-button {
+  min-width: 92px;
+  height: 35px;
+  border-radius: 10px;
+  flex: 0 0 auto;
+}
+
+.skeleton-chart-card {
+  min-height: 0;
+}
+
+.skeleton-chart {
+  height: 320px;
+  border-radius: 14px;
+}
+
+.skeleton-subgrid {
+  margin-top: 0.2rem;
+}
+
+.skeleton-panel {
+  min-height: 116px;
+  border-radius: 14px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 @media (max-width: 1060px) {
   .layout {
     grid-template-columns: 280px 1fr;
@@ -522,6 +639,16 @@ body {
 }
 
 @media (max-width: 760px) {
+  .topbar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1rem 1rem 0.9rem;
+  }
+
+  .topbar-tag {
+    align-self: flex-start;
+  }
+
   .layout {
     grid-template-columns: 1fr;
   }
@@ -529,7 +656,30 @@ body {
   .sidebar {
     border-right: 0;
     border-bottom: 1px solid var(--line);
-    max-height: 260px;
+    max-height: none;
+    padding: 0.85rem;
+  }
+
+  .content {
+    padding: 0.85rem;
+  }
+
+  .stock-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .filters {
+    gap: 0.5rem;
+  }
+
+  .filters button,
+  .filters input[type="date"] {
+    flex: 1 1 100%;
   }
 
   .analysis-grid {
@@ -537,6 +687,68 @@ body {
   }
 
   .chart-wrap {
-    height: 260px;
+    height: 240px;
+  }
+
+  .skeleton-chart {
+    height: 240px;
+  }
+
+  .section-title-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .row-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .correlation-row {
+    grid-template-columns: 1fr;
+  }
+
+  .correlation-gauge {
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .topbar h1 {
+    font-size: 1.2rem;
+  }
+
+  .topbar p,
+  .muted-subtext {
+    font-size: 0.8rem;
+  }
+
+  .search-wrap input,
+  .analysis-select,
+  .filters button,
+  .filters input[type="date"] {
+    border-radius: 11px;
+  }
+
+  .company-item {
+    padding: 0.62rem;
+  }
+
+  .company-top {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .trend-dot,
+  .muted-chip,
+  .sector-pill {
+    width: fit-content;
+  }
+
+  .hero-empty,
+  .chart-card,
+  .analysis-card,
+  .metric {
+    border-radius: 14px;
   }
 }

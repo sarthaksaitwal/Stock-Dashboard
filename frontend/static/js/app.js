@@ -242,6 +242,44 @@ function PriceChart({ series, symbol, days, prediction, viewMode, sessionDate })
   );
 }
 
+function StockAnalysisSkeleton() {
+  return (
+    <div className="stock-skeleton" aria-label="Loading stock analysis" aria-busy="true">
+      <div className="skeleton-header">
+        <div className="skeleton-line skeleton-line-lg"></div>
+        <div className="skeleton-chip"></div>
+      </div>
+
+      <div className="skeleton-grid metrics-grid">
+        <div className="skeleton-card"></div>
+        <div className="skeleton-card"></div>
+        <div className="skeleton-card"></div>
+        <div className="skeleton-card"></div>
+        <div className="skeleton-card"></div>
+      </div>
+
+      <div className="skeleton-filter-row filters">
+        <div className="skeleton-button"></div>
+        <div className="skeleton-button"></div>
+        <div className="skeleton-button"></div>
+      </div>
+
+      <div className="chart-card skeleton-chart-card">
+        <div className="section-title-row">
+          <div className="skeleton-line skeleton-line-md"></div>
+          <div className="skeleton-chip"></div>
+        </div>
+        <div className="chart-wrap skeleton-chart"></div>
+        <div className="skeleton-subgrid analysis-grid">
+          <div className="skeleton-panel"></div>
+          <div className="skeleton-panel"></div>
+          <div className="skeleton-panel"></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [companies, setCompanies] = useState([]);
   const [companiesLoading, setCompaniesLoading] = useState(true);
@@ -632,7 +670,7 @@ function App() {
                 </div>
               )}
 
-              {stockLoading && <div className="state-msg">Loading stock analysis...</div>}
+              {stockLoading && <StockAnalysisSkeleton />}
               {stockError && <div className="state-msg error">{stockError}</div>}
               {!stockLoading && !stockError && series.length > 0 && (
                 <PriceChart
