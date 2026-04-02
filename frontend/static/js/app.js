@@ -591,23 +591,36 @@ function App() {
               <h2>Explore stock trends, summaries, and predictions</h2>
               <p>
                 Use the list on the left to open any stock and see its price chart, key metrics,
-                correlation checks, and forecast view. Nothing is preselected, so the dashboard
-                starts as a clean overview.
+                correlation checks, and forecast view. This dashboard combines live market data,
+                historical trends, and predictive analysis in one place.
               </p>
+              <div className="intro-summary">
+                <span>Track daily movement</span>
+                <span>Compare two stocks</span>
+                <span>Review gainers and losers</span>
+                <span>Inspect forecast bands</span>
+              </div>
               <div className="intro-points">
                 <div>
                   <strong>Track performance</strong>
-                  <span>Review daily movement, volatility, and 52-week levels.</span>
+                  <span>Review daily movement, volatility, and 52-week levels across tracked companies.</span>
                 </div>
                 <div>
                   <strong>Compare stocks</strong>
-                  <span>Switch between symbols to inspect correlation and relative behavior.</span>
+                  <span>Switch between symbols to inspect correlation and relative behavior side by side.</span>
                 </div>
                 <div>
                   <strong>See forecasts</strong>
-                  <span>Open a stock to load prediction visuals and model details.</span>
+                  <span>Open a stock to load prediction visuals, confidence bands, and model details.</span>
+                </div>
+                <div>
+                  <strong>Stay informed</strong>
+                  <span>Use the same workspace to review top gainers, top losers, and data source status.</span>
                 </div>
               </div>
+              <p className="intro-footnote">
+                Choose any company to begin. The stock view will load only after you select one.
+              </p>
             </div>
           )}
 
