@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 from config.settings import settings
-from app.core.database import init_db
+from app.core.database import init_db, seed_database_if_empty
 from app.api.endpoints import companies_router, stocks_router
 import logging
 import logging.config
@@ -84,6 +84,8 @@ async def lifespan(app: FastAPI):
     logger.info("Starting up application...")
     init_db()
     logger.info("Database initialized successfully")
+    seed_database_if_empty()
+    logger.info("Database ready for use")
     yield
 
 # Create FastAPI app
