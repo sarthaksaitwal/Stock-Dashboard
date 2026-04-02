@@ -238,6 +238,11 @@ def seed_database_if_empty():
                     logger.info(f"  Added: {symbol}")
             db.commit()
             logger.info("✅ Companies populated")
+
+            company_lookup = {
+                company.symbol: company.id
+                for company in db.query(Company).all()
+            }
             
             # Populate stock data (try NSELib first, fallback to synthetic)
             logger.info("Populating stock data...")
@@ -254,19 +259,23 @@ def seed_database_if_empty():
                 
                 if data is not None and not data.empty:
                     for _, row in data.iterrows():
+                        row_date = pd.to_datetime(row["Date"]).to_pydatetime()
                         stock_record = StockData(
+                            company_id=company_lookup[symbol],
                             symbol=symbol,
-                            date=row["Date"].date(),
-                            opening_price=float(row["Open"]),
-                            closing_price=float(row["Close"]),
+                            date=row_date,
+                            open_price=float(row["Open"]),
+                            close_price=float(row["Close"]),
                             high_price=float(row["High"]),
                             low_price=float(row["Low"]),
                             volume=int(row["Volume"]),
-                            daily_return=float(row["Daily_Return"])
+                            daily_return=float(row["Daily_Return"]) if pd.notna(row["Daily_Return"]) else None,
+                            moving_avg_7=float(row["MA7"]) if "MA7" in row and pd.notna(row["MA7"]) else None,
+                            moving_avg_30=float(row["MA30"]) if "MA30" in row and pd.notna(row["MA30"]) else None,
                         )
                         if db.query(StockData).filter(
                             StockData.symbol == symbol,
-                            StockData.date == row["Date"].date()
+                            StockData.date == row_date
                         ).first() is None:
                             db.add(stock_record)
                     db.commit()
