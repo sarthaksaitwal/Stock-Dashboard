@@ -32,6 +32,22 @@ realtime_quote_service = RealtimeQuoteService()
 
 
 ALPHA_VANTAGE_SYMBOLS = {
+
+    @router.get("/debug/count")
+    async def debug_count(db: Session = Depends(get_db)):
+        """Debug endpoint to check data count."""
+        try:
+            company_count = db.query(Company).count()
+            stock_count = db.query(StockData).count()
+            sample_dates = db.query(StockData.date).limit(5).all()
+            return {
+                "companies": company_count,
+                "stock_data_rows": stock_count,
+                "sample_dates": [d[0].isoformat() if d[0] else "None" for d in sample_dates]
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
     "INFY": "INFY.BSE",
     "TCS": "TCS.BSE",
     "WIPRO": "WIPRO.BSE",
