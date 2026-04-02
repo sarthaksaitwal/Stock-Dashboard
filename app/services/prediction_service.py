@@ -98,8 +98,14 @@ class PredictionService:
             return frame
 
         frame = frame.sort_values("date").reset_index(drop=True)
+        frame["volume"] = pd.to_numeric(frame["volume"], errors="coerce")
+        if frame["volume"].isna().all() or (frame["volume"] <= 0).all():
+            frame["volume"] = (frame["close"] * 1000).round(0)
+        else:
+            frame["volume"] = frame["volume"].replace(0, np.nan).ffill().bfill()
+
         frame["daily_return"] = frame["close"].pct_change()
-        frame["volume_change"] = frame["volume"].pct_change()
+        frame["volume_change"] = frame["volume"].pct_change().replace([np.inf, -np.inf], np.nan).fillna(0.0)
         frame["volatility_7"] = frame["daily_return"].rolling(7).std()
         frame["ma_7"] = frame["close"].rolling(7).mean()
         frame["ma_slope_7"] = frame["ma_7"].diff()
