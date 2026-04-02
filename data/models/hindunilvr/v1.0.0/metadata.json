@@ -22,6 +22,6 @@
   "artifact_path": "D:/JarNox/stock-dashboard/data/models/hindunilvr/v1.0.0/model.json",
   "data_as_of_date": "2026-03-30",
   "residual_std": 51.346991,
-  "cache_hit": false,
+  "cache_hit": true,
   "last_known_close": 2055.2
 }

@@ -1,0 +1,59 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: stock-dashboard-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: stock_dashboard
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - stock_dashboard_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d stock_dashboard"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stock-dashboard-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/stock_dashboard
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      DEBUG: "False"
+      LOG_FILE: logs/app.log
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stock-dashboard-seed
+    profiles:
+      - seed
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/stock_dashboard
+      LOG_FILE: logs/app.log
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["python", "populate_database.py"]
+
+volumes:
+  stock_dashboard_pgdata:
