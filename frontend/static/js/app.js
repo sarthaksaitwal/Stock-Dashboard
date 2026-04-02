@@ -333,10 +333,6 @@ function App() {
         const data = await res.json();
         if (!mounted) return;
         setCompanies(data || []);
-
-        if (data && data.length > 0) {
-          setSelected(data[0]);
-        }
       } catch (err) {
         if (!mounted) return;
         setCompaniesError("Unable to load companies. Please check if server is running.");
@@ -590,9 +586,28 @@ function App() {
 
         <section className="content">
           {!selected && (
-            <div className="hero-empty">
-              <h2>Select a Stock</h2>
-              <p>Pick any company from the left to see chart, summary, and trend analytics.</p>
+            <div className="hero-empty dashboard-intro">
+              <div className="intro-kicker">Welcome</div>
+              <h2>Explore stock trends, summaries, and predictions</h2>
+              <p>
+                Use the list on the left to open any stock and see its price chart, key metrics,
+                correlation checks, and forecast view. Nothing is preselected, so the dashboard
+                starts as a clean overview.
+              </p>
+              <div className="intro-points">
+                <div>
+                  <strong>Track performance</strong>
+                  <span>Review daily movement, volatility, and 52-week levels.</span>
+                </div>
+                <div>
+                  <strong>Compare stocks</strong>
+                  <span>Switch between symbols to inspect correlation and relative behavior.</span>
+                </div>
+                <div>
+                  <strong>See forecasts</strong>
+                  <span>Open a stock to load prediction visuals and model details.</span>
+                </div>
+              </div>
             </div>
           )}
 
