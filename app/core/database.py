@@ -88,11 +88,10 @@ def seed_database_if_empty():
     import logging
     logger = logging.getLogger(__name__)
     
-    if not is_database_empty():
-        logger.info("Database already populated. Skipping seed.")
-        return
-    
-    logger.info("Database is empty. Starting auto-seed...")
+    if is_database_empty():
+        logger.info("Database is empty. Starting auto-seed...")
+    else:
+        logger.info("Database has existing records. Running incremental refresh...")
     
     try:
         from app.models import Company, StockData
