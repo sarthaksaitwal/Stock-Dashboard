@@ -626,171 +626,176 @@ function App() {
 
           {selected && (
             <>
-              <div className="stock-head">
-                <div>
-                  <h2>{selected.symbol}</h2>
-                  <p>{selected.name || "Selected stock"}</p>
-                </div>
-                <span className={`trend-dot ${trendUp ? "up" : "down"}`}>
-                  {trendUp ? "Uptrend" : "Downtrend"}
-                </span>
-              </div>
-
-              <div className="metrics-grid">
-                <article className="metric">
-                  <span>Current Price</span>
-                  <strong>{formatINR(summary?.current_price)}</strong>
-                </article>
-                <article className="metric">
-                  <span>52-Week High</span>
-                  <strong>{formatINR(summary?.week_52_high)}</strong>
-                </article>
-                <article className="metric">
-                  <span>52-Week Low</span>
-                  <strong>{formatINR(summary?.week_52_low)}</strong>
-                </article>
-                <article className="metric">
-                  <span>Average Close</span>
-                  <strong>{formatINR(summary?.avg_close)}</strong>
-                </article>
-                <article className="metric">
-                  <span>Volatility (30D, Ann.)</span>
-                  <strong>{formatPercent(summary?.volatility_30d)}</strong>
-                  <small>{summary?.volatility_band || "-"}</small>
-                </article>
-              </div>
-
-              <div className="filters">
-                <button
-                  onClick={() => setViewMode("session")}
-                  className={viewMode === "session" ? "active" : ""}
-                >
-                  Session Day
-                </button>
-                {viewMode === "session" && (
-                  <input
-                    type="date"
-                    value={sessionDate}
-                    max={new Date().toISOString().slice(0, 10)}
-                    onChange={(e) => setSessionDate(e.target.value)}
-                  />
-                )}
-                {[30, 90].map((d) => (
-                  <button
-                    key={d}
-                    onClick={() => {
-                      setViewMode("range");
-                      setDays(d);
-                    }}
-                    className={viewMode === "range" && days === d ? "active" : ""}
-                  >
-                    {`Last ${d} Days`}
-                  </button>
-                ))}
-              </div>
-
-              {viewMode === "session" && sessionStatus?.message && (
-                <div className={`state-msg ${sessionStatus.source === "fallback_daily" ? "warning" : ""}`}>
-                  {sessionStatus.source === "fallback_daily"
-                    ? "Session source: Fallback. "
-                    : "Session source: Live API. "}
-                  {sessionStatus.message}
-                </div>
-              )}
-
-              {stockLoading && <StockAnalysisSkeleton />}
-              {stockError && <div className="state-msg error">{stockError}</div>}
-              {!stockLoading && !stockError && series.length > 0 && (
-                <PriceChart
-                  series={series}
-                  symbol={selected.symbol}
-                  days={days}
-                  prediction={prediction}
-                  viewMode={viewMode}
-                  sessionDate={sessionDate}
-                />
-              )}
-              {!stockLoading && !stockError && series.length === 0 && (
-                <div className="state-msg">No chart data available for this stock.</div>
-              )}
-
-              <div className="analysis-grid">
-                <section className="analysis-card">
-                  <div className="section-title-row">
-                    <h3>Correlation</h3>
-                    <span className="muted-chip">{days}d</span>
+              {stockLoading ? (
+                <StockAnalysisSkeleton />
+              ) : (
+                <>
+                  <div className="stock-head">
+                    <div>
+                      <h2>{selected.symbol}</h2>
+                      <p>{selected.name || "Selected stock"}</p>
+                    </div>
+                    <span className={`trend-dot ${trendUp ? "up" : "down"}`}>
+                      {trendUp ? "Uptrend" : "Downtrend"}
+                    </span>
                   </div>
-                  <label className="inline-label" htmlFor="correlation-symbol-select">Compare with</label>
-                  <select
-                    id="correlation-symbol-select"
-                    className="analysis-select"
-                    value={comparisonSymbol}
-                    onChange={(e) => setComparisonSymbol(e.target.value)}
-                  >
-                    {companies
-                      .filter((c) => c.symbol !== selected.symbol)
-                      .map((c) => (
-                        <option key={c.symbol} value={c.symbol}>
-                          {c.symbol}
-                        </option>
-                      ))}
-                  </select>
 
-                  {correlationLoading && <div className="state-msg">Calculating correlation...</div>}
-                  {correlationError && <div className="state-msg error">{correlationError}</div>}
-                  {!correlationLoading && !correlationError && correlation && (
-                    <div className="row-item correlation-row">
-                      <span>
-                        {correlation.symbol1} vs {correlation.symbol2}
-                      </span>
-                      <strong className={Number(correlation.correlation) >= 0 ? "up" : "down"}>
-                        {Number(correlation.correlation).toFixed(2)}
-                      </strong>
-                      <div className="correlation-gauge" aria-label="Correlation gauge">
-                        <div className="correlation-gauge-track"></div>
-                        <div
-                          className="correlation-gauge-marker"
-                          style={{ left: `${((Number(correlation.correlation) + 1) / 2) * 100}%` }}
-                        ></div>
-                        <div className="correlation-gauge-labels">
-                          <span>-1</span>
-                          <span>0</span>
-                          <span>+1</span>
-                        </div>
-                      </div>
-                      <span className="muted-subtext">{correlation.relationship}</span>
+                  <div className="metrics-grid">
+                    <article className="metric">
+                      <span>Current Price</span>
+                      <strong>{formatINR(summary?.current_price)}</strong>
+                    </article>
+                    <article className="metric">
+                      <span>52-Week High</span>
+                      <strong>{formatINR(summary?.week_52_high)}</strong>
+                    </article>
+                    <article className="metric">
+                      <span>52-Week Low</span>
+                      <strong>{formatINR(summary?.week_52_low)}</strong>
+                    </article>
+                    <article className="metric">
+                      <span>Average Close</span>
+                      <strong>{formatINR(summary?.avg_close)}</strong>
+                    </article>
+                    <article className="metric">
+                      <span>Volatility (30D, Ann.)</span>
+                      <strong>{formatPercent(summary?.volatility_30d)}</strong>
+                      <small>{summary?.volatility_band || "-"}</small>
+                    </article>
+                  </div>
+
+                  <div className="filters">
+                    <button
+                      onClick={() => setViewMode("session")}
+                      className={viewMode === "session" ? "active" : ""}
+                    >
+                      Session Day
+                    </button>
+                    {viewMode === "session" && (
+                      <input
+                        type="date"
+                        value={sessionDate}
+                        max={new Date().toISOString().slice(0, 10)}
+                        onChange={(e) => setSessionDate(e.target.value)}
+                      />
+                    )}
+                    {[30, 90].map((d) => (
+                      <button
+                        key={d}
+                        onClick={() => {
+                          setViewMode("range");
+                          setDays(d);
+                        }}
+                        className={viewMode === "range" && days === d ? "active" : ""}
+                      >
+                        {`Last ${d} Days`}
+                      </button>
+                    ))}
+                  </div>
+
+                  {viewMode === "session" && sessionStatus?.message && (
+                    <div className={`state-msg ${sessionStatus.source === "fallback_daily" ? "warning" : ""}`}>
+                      {sessionStatus.source === "fallback_daily"
+                        ? "Session source: Fallback. "
+                        : "Session source: Live API. "}
+                      {sessionStatus.message}
                     </div>
                   )}
-                </section>
 
-                <section className="analysis-card">
-                  <div className="section-title-row">
-                    <h3>Top Gainers</h3>
-                    <span className="muted-chip positive">Today</span>
-                  </div>
-                  {analytics.gainers.length === 0 && <div className="state-msg">No gainers available.</div>}
-                  {analytics.gainers.map((item) => (
-                    <div key={`g-${item.symbol}`} className="row-item">
-                      <span>{item.symbol}</span>
-                      <strong className="up">+{item.change_percent}%</strong>
-                    </div>
-                  ))}
-                </section>
+                  {stockError && <div className="state-msg error">{stockError}</div>}
+                  {!stockError && series.length > 0 && (
+                    <PriceChart
+                      series={series}
+                      symbol={selected.symbol}
+                      days={days}
+                      prediction={prediction}
+                      viewMode={viewMode}
+                      sessionDate={sessionDate}
+                    />
+                  )}
+                  {!stockError && series.length === 0 && (
+                    <div className="state-msg">No chart data available for this stock.</div>
+                  )}
 
-                <section className="analysis-card">
-                  <div className="section-title-row">
-                    <h3>Top Losers</h3>
-                    <span className="muted-chip negative">Today</span>
+                  <div className="analysis-grid">
+                    <section className="analysis-card">
+                      <div className="section-title-row">
+                        <h3>Correlation</h3>
+                        <span className="muted-chip">{days}d</span>
+                      </div>
+                      <label className="inline-label" htmlFor="correlation-symbol-select">Compare with</label>
+                      <select
+                        id="correlation-symbol-select"
+                        className="analysis-select"
+                        value={comparisonSymbol}
+                        onChange={(e) => setComparisonSymbol(e.target.value)}
+                      >
+                        {companies
+                          .filter((c) => c.symbol !== selected.symbol)
+                          .map((c) => (
+                            <option key={c.symbol} value={c.symbol}>
+                              {c.symbol}
+                            </option>
+                          ))}
+                      </select>
+
+                      {correlationLoading && <div className="state-msg">Calculating correlation...</div>}
+                      {correlationError && <div className="state-msg error">{correlationError}</div>}
+                      {!correlationLoading && !correlationError && correlation && (
+                        <div className="row-item correlation-row">
+                          <span>
+                            {correlation.symbol1} vs {correlation.symbol2}
+                          </span>
+                          <strong className={Number(correlation.correlation) >= 0 ? "up" : "down"}>
+                            {Number(correlation.correlation).toFixed(2)}
+                          </strong>
+                          <div className="correlation-gauge" aria-label="Correlation gauge">
+                            <div className="correlation-gauge-track"></div>
+                            <div
+                              className="correlation-gauge-marker"
+                              style={{ left: `${((Number(correlation.correlation) + 1) / 2) * 100}%` }}
+                            ></div>
+                            <div className="correlation-gauge-labels">
+                              <span>-1</span>
+                              <span>0</span>
+                              <span>+1</span>
+                            </div>
+                          </div>
+                          <span className="muted-subtext">{correlation.relationship}</span>
+                        </div>
+                      )}
+                    </section>
+
+                    <section className="analysis-card">
+                      <div className="section-title-row">
+                        <h3>Top Gainers</h3>
+                        <span className="muted-chip positive">Today</span>
+                      </div>
+                      {analytics.gainers.length === 0 && <div className="state-msg">No gainers available.</div>}
+                      {analytics.gainers.map((item) => (
+                        <div key={`g-${item.symbol}`} className="row-item">
+                          <span>{item.symbol}</span>
+                          <strong className="up">+{item.change_percent}%</strong>
+                        </div>
+                      ))}
+                    </section>
+
+                    <section className="analysis-card">
+                      <div className="section-title-row">
+                        <h3>Top Losers</h3>
+                        <span className="muted-chip negative">Today</span>
+                      </div>
+                      {analytics.losers.length === 0 && <div className="state-msg">No losers available.</div>}
+                      {analytics.losers.map((item) => (
+                        <div key={`l-${item.symbol}`} className="row-item">
+                          <span>{item.symbol}</span>
+                          <strong className="down">{item.change_percent}%</strong>
+                        </div>
+                      ))}
+                    </section>
                   </div>
-                  {analytics.losers.length === 0 && <div className="state-msg">No losers available.</div>}
-                  {analytics.losers.map((item) => (
-                    <div key={`l-${item.symbol}`} className="row-item">
-                      <span>{item.symbol}</span>
-                      <strong className="down">{item.change_percent}%</strong>
-                    </div>
-                  ))}
-                </section>
-              </div>
+                </>
+              )}
             </>
           )}
         </section>
