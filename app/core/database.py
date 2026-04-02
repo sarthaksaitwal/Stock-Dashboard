@@ -1,6 +1,6 @@
 """Database connection and session management."""
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker, Session
 from config.settings import settings
 from pathlib import Path
@@ -52,18 +52,35 @@ def init_db():
 
 
 def is_database_empty() -> bool:
-    """Check if database needs seeding - checks if stock_data is populated."""
+    """Check if database needs seeding based on recency and symbol coverage."""
     try:
-        from app.models import StockData
+        from datetime import datetime, timedelta
+        from app.models import Company, StockData
         db = SessionLocal()
         try:
-            # If there's no stock data, definitely need to seed
             stock_count = db.query(StockData).count()
-            return stock_count == 0
+            if stock_count == 0:
+                return True
+
+            recent_cutoff = datetime.utcnow() - timedelta(days=120)
+            latest_stock_date = db.query(func.max(StockData.date)).scalar()
+            if latest_stock_date is None or latest_stock_date < recent_cutoff:
+                return True
+
+            company_symbols = {row[0] for row in db.query(Company.symbol).all()}
+            symbols_with_recent_data = {
+                row[0]
+                for row in db.query(StockData.symbol)
+                .filter(StockData.date >= recent_cutoff)
+                .distinct()
+                .all()
+            }
+
+            missing_symbols = company_symbols - symbols_with_recent_data
+            return len(missing_symbols) > 0
         finally:
             db.close()
     except Exception:
-        # If we can't query, assume we need to seed
         return True
 
 def seed_database_if_empty():
@@ -134,22 +151,6 @@ def seed_database_if_empty():
                 provider_symbol = NSELIB_SYMBOLS.get(symbol, symbol)
                 to_date = datetime.now().strftime("%d-%m-%Y")
                 from_date = (datetime.now() - timedelta(days=max(days + 30, 45))).strftime("%d-%m-%Y")
-
-def is_database_empty() -> bool:
-    """Check if database needs seeding - requires stock_data to be populated."""
-    try:
-        from app.models import StockData
-        db = SessionLocal()
-        try:
-            # If there's no stock data, definitely need to seed
-            stock_count = db.query(StockData).count()
-            return stock_count == 0
-        finally:
-            db.close()
-    except Exception:
-        # If we can't query, assume we need to seed
-        return True
-
 
                 raw = capital_market.price_volume_and_deliverable_position_data(
                     symbol=provider_symbol,
