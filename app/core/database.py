@@ -52,18 +52,19 @@ def init_db():
 
 
 def is_database_empty() -> bool:
-    """Check if database has any companies (indicating if seed is needed)."""
+    """Check if database needs seeding - checks if stock_data is populated."""
     try:
-        from app.models import Company
+        from app.models import StockData
         db = SessionLocal()
         try:
-            count = db.query(Company).count()
-            return count == 0
+            # If there's no stock data, definitely need to seed
+            stock_count = db.query(StockData).count()
+            return stock_count == 0
         finally:
             db.close()
     except Exception:
+        # If we can't query, assume we need to seed
         return True
-
 
 def seed_database_if_empty():
     """Automatically seed database on first startup if it's empty."""
@@ -133,6 +134,22 @@ def seed_database_if_empty():
                 provider_symbol = NSELIB_SYMBOLS.get(symbol, symbol)
                 to_date = datetime.now().strftime("%d-%m-%Y")
                 from_date = (datetime.now() - timedelta(days=max(days + 30, 45))).strftime("%d-%m-%Y")
+
+def is_database_empty() -> bool:
+    """Check if database needs seeding - requires stock_data to be populated."""
+    try:
+        from app.models import StockData
+        db = SessionLocal()
+        try:
+            # If there's no stock data, definitely need to seed
+            stock_count = db.query(StockData).count()
+            return stock_count == 0
+        finally:
+            db.close()
+    except Exception:
+        # If we can't query, assume we need to seed
+        return True
+
 
                 raw = capital_market.price_volume_and_deliverable_position_data(
                     symbol=provider_symbol,
