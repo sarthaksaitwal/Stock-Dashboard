@@ -1,211 +1,146 @@
-# 📈 Stock Dashboard - Financial Data Intelligence Platform
+# Stock Intelligence Dashboard
 
-A modern, scalable stock market data platform built with Python, FastAPI, and real-time data visualization.
+Stock Intelligence Dashboard is a FastAPI + React-style (Babel in browser) web app for exploring Indian stock trends with interactive charts, analytics, and short-horizon forecasts.
 
-## 📋 Table of Contents
+## What This Project Does
 
-- [Overview](#overview)
-- [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Running the Application](#running-the-application)
-- [API Endpoints](#api-endpoints)
-- [Features](#features)
-- [Development](#development)
+- Shows a welcome/intro dashboard on first load (no default stock preselected)
+- Lets users pick a company and view:
+	- session-day or rolling-range price charts
+	- 52-week summary metrics and volatility band
+	- correlation against another stock
+	- top gainers and top losers
+	- prediction curve with confidence bands
+- Uses provider fallback flow so the app stays usable when primary API limits are hit
+- Refreshes market data at startup and on a periodic background interval
 
-## 🎯 Overview
+## Current Data Strategy
 
-Stock Dashboard is a comprehensive financial data platform that:
-- Collects and processes real stock market data
-- Provides REST APIs for data access
-- Visualizes market insights through interactive dashboards
-- Calculates technical metrics and indicators
+### Provider flow
 
-## 🛠 Tech Stack
+1. Alpha Vantage (primary)
+2. NSELib (fallback)
+3. Synthetic generation (fallback when live providers are unavailable)
 
-- **Backend**: FastAPI (Python)
-- **Database**: SQLite (development) / PostgreSQL (production)
-- **Data Processing**: Pandas, NumPy
-- **Data Source**: yfinance
-- **Frontend**: HTML5, JavaScript, Chart.js
-- **Deployment**: Docker (optional)
+### Refresh behavior
 
-## 📁 Project Structure
+- At app startup, database tables are initialized and data is seeded/refreshed.
+- During runtime, a scheduled background refresh runs every `DATA_UPDATE_INTERVAL` hours.
+- Data is **not** repopulated on every request.
 
-```
-stock-dashboard/
-├── app/                          # Main application package
-│   ├── api/                      # API endpoints
-│   │   └── endpoints/            # Route definitions
-│   ├── models/                   # Database models (ORM)
-│   ├── schemas/                  # Pydantic validation schemas
-│   ├── services/                 # Business logic
-│   ├── core/                     # Core functionality (database, config)
-│   └── utils/                    # Utility functions
-├── frontend/                     # Frontend application
-│   ├── static/                   # CSS, JS, images
-│   │   ├── css/
-│   │   └── js/
-│   └── templates/                # HTML templates
-├── config/                       # Configuration management
-├── tests/                        # Unit and integration tests
-├── data/                         # Data storage
-├── logs/                         # Application logs
-├── main.py                       # Application entry point
-├── requirements.txt              # Python dependencies
-├── .env.example                  # Environment variables template
-├── .gitignore                    # Git ignore rules
-└── README.md                     # This file
-```
+## Tech Stack
 
-## 🚀 Installation
+- Backend: FastAPI, SQLAlchemy, Pydantic Settings
+- DB: PostgreSQL (production), SQLite/PostgreSQL configurable for local
+- Data/ML: pandas, numpy, xgboost
+- Frontend: React (UMD + Babel), Chart.js, custom CSS
+- Deployment: Docker, docker-compose, Render
 
-### Prerequisites
-- Python 3.8+
-- pip
+## Core Features Implemented
 
-### Step 1: Clone and Setup
+- Company list and symbol search
+- Session view and rolling window view (30/90 days)
+- 52-week summary API and dashboard cards
+- Correlation analytics API + gauge UI
+- Top gainers/top losers analytics panels
+- Forecast API (`/data/prediction/{symbol}`) with model metadata
+- Provider status endpoint and user-facing data source remarks
+- Loading shimmer for stock analysis section
+- Responsive layout for desktop and mobile
+- Welcome card shown only before stock selection
+
+## API Docs
+
+- Swagger UI: `http://localhost:8000/api/docs`
+- ReDoc: `http://localhost:8000/api/redoc`
+
+On deployed Render service:
+
+- `https://stock-dashboard-z4hw.onrender.com/api/docs`
+- `https://stock-dashboard-z4hw.onrender.com/api/redoc`
+
+## Key API Routes
+
+- `GET /companies`
+- `GET /data/{symbol}?days=30|90`
+- `GET /data/session/{symbol}?trade_date=YYYY-MM-DD&interval=5min`
+- `GET /data/summary/{symbol}`
+- `GET /data/analytics/top-gainers?days=1&limit=5`
+- `GET /data/analytics/top-losers?days=1&limit=5`
+- `GET /data/analytics/correlation?symbol1=INFY&symbol2=TCS&days=30`
+- `GET /data/prediction/{symbol}?history_days=180&horizon=7`
+- `GET /data/provider-status/{symbol}`
+- `GET /health`
+
+## Local Setup
+
+### 1) Install dependencies
 
 ```bash
-# Navigate to project
-cd stock-dashboard
-
-# Create virtual environment
 python -m venv venv
-
-# Activate virtual environment
-# On Windows:
+# Windows
 venv\Scripts\activate
-# On macOS/Linux:
-source venv/bin/activate
-```
+# macOS/Linux
+# source venv/bin/activate
 
-### Step 2: Install Dependencies
-
-```bash
 pip install -r requirements.txt
 ```
 
-### Step 3: Configure Environment
+### 2) Configure environment
 
-```bash
-# Copy example environment file
-cp .env.example .env
-
-# Edit .env with your settings (optional)
-```
-
-## ⚙️ Configuration
-
-The application uses environment variables via `.env` file:
+Create/update `.env` (example fields):
 
 ```env
-# Database
-DATABASE_URL=sqlite:///./stock_data.db
-
-# API Settings
+DATABASE_URL=postgresql+psycopg2://postgres:postgres@localhost:5432/stock_dashboard
 API_HOST=0.0.0.0
 API_PORT=8000
 DEBUG=True
-
-# Stock Configuration
-STOCKS_TO_TRACK=INFY,TCS,WIPRO,RELIANCE
-DATE_RANGE_DAYS=100
-
-# Logging
+ALPHA_VANTAGE_API_KEY=
+DATA_UPDATE_INTERVAL=24
 LOG_LEVEL=INFO
 ```
 
-## 🎮 Running the Application
+### 3) Run app
 
 ```bash
-# Make sure virtual environment is activated
 python main.py
-
-# Or use uvicorn directly
-uvicorn main:app --reload
 ```
 
-Access the application:
-- 📊 API: http://localhost:8000
-- 📚 API Docs: http://localhost:8000/docs
-- 🪄 ReDoc: http://localhost:8000/redoc
-
-## 📡 API Endpoints
-
-### Companies
-- `GET /companies` - List all tracked companies
-- `GET /company/{symbol}` - Get company details
-
-### Stock Data
-- `GET /data/{symbol}` - Get last 30 days of stock data
-- `GET /summary/{symbol}` - Get 52-week statistics
-
-### Compare & Analytics
-- `GET /compare?symbol1=INFY&symbol2=TCS` - Compare two stocks
-- `GET /top-gainers` - Top performing stocks
-- `GET /top-losers` - Worst performing stocks
-
-## ✨ Features
-
-### Core Features ✅
-- [x] Real-time stock data fetching
-- [x] Data cleaning and validation
-- [x] Technical indicators (MA7, MA30, Daily Return)
-- [x] REST API with pagination
-- [x] Swagger/OpenAPI documentation
-
-### Bonus Features (In Progress)
-- [ ] Interactive dashboard with Chart.js
-- [ ] Stock comparison visualization
-- [ ] Top gainers/losers analytics
-- [ ] Price prediction with ML
-- [ ] Docker containerization
-- [ ] Cloud deployment
-
-## 🔧 Development
-
-### Running Tests
+## Docker Compose
 
 ```bash
-pytest tests/ -v
+docker compose up --build
 ```
 
-### Code Quality
+Optional one-time seed profile:
 
 ```bash
-# Format code
-black app/
-
-# Check lint
-flake8 app/
-
-# Type checking
-mypy app/
+docker compose --profile seed up seed
 ```
 
-### Database Migrations
+## Project Structure (Relevant)
 
-```bash
-# Initialize alembic
-alembic init migrations
-
-# Create migration
-alembic revision --autogenerate -m "Add new table"
-
-# Apply migrations
-alembic upgrade head
+```text
+stock-dashboard/
+├── app/
+│   ├── api/endpoints/
+│   ├── core/database.py
+│   ├── models/
+│   └── services/prediction_service.py
+├── config/settings.py
+├── frontend/
+│   ├── static/
+│   │   ├── css/style.css
+│   │   ├── js/app.js
+│   │   └── favicon.svg
+│   └── templates/index.html
+├── data/models/
+├── docker-compose.yml
+├── main.py
+└── README.md
 ```
 
-## 📝 License
+## Notes
 
-MIT License
-
-## 📞 Support
-
-For issues or questions, contact: support@jarnox.com
-
----
-
-**Built with ❤️ for the Jarnox Internship Program**
+- If browser changes are not visible, hard refresh once after deployment due to static asset caching.
+- Prediction endpoint requires enough usable historical rows after feature engineering.
